@@ -16,99 +16,104 @@
 # Clean up workspace
 rm(list=ls())
 
-# 1. Merge the training and the test sets to create one data set.
+getwd()
+setwd("/Users/ntabgoba/Desktop/CleaningData")
+list.files()
 
-#set working directory to the location where the UCI HAR Dataset was unzipped
-setwd('/Users/heather/Documents/UCI HAR Dataset/');
+#Download the file and put the in file in the data folder
 
-# Read in the data from files
-features     = read.table('./features.txt',header=FALSE); #imports features.txt
-activityType = read.table('./activity_labels.txt',header=FALSE); #imports activity_labels.txt
-subjectTrain = read.table('./train/subject_train.txt',header=FALSE); #imports subject_train.txt
-xTrain       = read.table('./train/x_train.txt',header=FALSE); #imports x_train.txt
-yTrain       = read.table('./train/y_train.txt',header=FALSE); #imports y_train.txt
+if(!file.exists("./data")){dir.create("./data")}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+download.file(fileUrl,destfile="./data/Dataset.zip",method="curl")
 
-# Assigin column names to the data imported above
-colnames(activityType)  = c('activityId','activityType');
-colnames(subjectTrain)  = "subjectId";
-colnames(xTrain)        = features[,2]; 
-colnames(yTrain)        = "activityId";
+#Unzip the file
+unzip(zipfile="./data/Dataset.zip",exdir="./data")
 
-# cCreate the final training set by merging yTrain, subjectTrain, and xTrain
-trainingData = cbind(yTrain,subjectTrain,xTrain);
+#Get the list of the files from unzipped files (are in the folder UCI HAR Dataset). 
 
-# Read in the test data
-subjectTest = read.table('./test/subject_test.txt',header=FALSE); #imports subject_test.txt
-xTest       = read.table('./test/x_test.txt',header=FALSE); #imports x_test.txt
-yTest       = read.table('./test/y_test.txt',header=FALSE); #imports y_test.txt
+path_rf <- file.path("./data" , "UCI HAR Dataset")
+files<-list.files(path_rf, recursive=TRUE)
+files
 
-# Assign column names to the test data imported above
-colnames(subjectTest) = "subjectId";
-colnames(xTest)       = features[,2]; 
-colnames(yTest)       = "activityId";
+#Read data from the the targeted files
 
+#Read activity files
+dataActivityTest  <- read.table(file.path(path_rf, "test" , "Y_test.txt" ),header = FALSE)
+dataActivityTrain <- read.table(file.path(path_rf, "train", "Y_train.txt"),header = FALSE)
 
-# Create the final test set by merging the xTest, yTest and subjectTest data
-testData = cbind(yTest,subjectTest,xTest);
+#Read Subject files
+dataSubjectTrain <- read.table(file.path(path_rf, "train", "subject_train.txt"),header = FALSE)
+dataSubjectTest  <- read.table(file.path(path_rf, "test" , "subject_test.txt"),header = FALSE)
 
+#Read Feature files
+dataFeaturesTest  <- read.table(file.path(path_rf, "test" , "X_test.txt" ),header = FALSE)
+dataFeaturesTrain <- read.table(file.path(path_rf, "train", "X_train.txt"),header = FALSE)
 
-# Combine training and test data to create a final data set
-finalData = rbind(trainingData,testData);
+### Look at properties of above variables
+str(dataActivityTest)
 
-# Create a vector for the column names from the finalData, which will be used
-# to select the desired mean() & stddev() columns
-colNames  = colnames(finalData); 
+str(dataActivityTrain)
 
-# 2. Extract only the measurements on the mean and standard deviation for each measurement. 
+str(dataSubjectTrain)
 
-# Create a logicalVector that contains TRUE values for the ID, mean() & stddev() columns and FALSE for others
-logicalVector = (grepl("activity..",colNames) | grepl("subject..",colNames) | grepl("-mean..",colNames) & !grepl("-meanFreq..",colNames) & !grepl("mean..-",colNames) | grepl("-std..",colNames) & !grepl("-std()..-",colNames));
+str(dataFeaturesTest)
 
-# Subset finalData table based on the logicalVector to keep only desired columns
-finalData = finalData[logicalVector==TRUE];
+str(dataFeaturesTrain)
 
-# 3. Use descriptive activity names to name the activities in the data set
+###MERGEs the training and tests sets to create one dataset
+#1.Concatenate the data tables by rows
 
-# Merge the finalData set with the acitivityType table to include descriptive activity names
-finalData = merge(finalData,activityType,by='activityId',all.x=TRUE);
+dataSubject <- rbind(dataSubjectTrain, dataSubjectTest)
+dataActivity<- rbind(dataActivityTrain, dataActivityTest)
+dataFeatures<- rbind(dataFeaturesTrain, dataFeaturesTest)
 
-# Updating the colNames vector to include the new column names after merge
-colNames  = colnames(finalData); 
+#2.Set names to variables
+names(dataSubject)<-c("subject")
+names(dataActivity)<- c("activity")
+dataFeaturesNames <- read.table(file.path(path_rf, "features.txt"),head=FALSE)
+names(dataFeatures)<- dataFeaturesNames$V2
 
-# 4. Appropriately label the data set with descriptive activity names. 
+#3.Merge columns to get the data frame Data for all data
+dataCombine <- cbind(dataSubject, dataActivity)
+Data <- cbind(dataFeatures, dataCombine)
 
-# Cleaning up the variable names
-for (i in 1:length(colNames)) 
-{
-  colNames[i] = gsub("\\()","",colNames[i])
-  colNames[i] = gsub("-std$","StdDev",colNames[i])
-  colNames[i] = gsub("-mean","Mean",colNames[i])
-  colNames[i] = gsub("^(t)","time",colNames[i])
-  colNames[i] = gsub("^(f)","freq",colNames[i])
-  colNames[i] = gsub("([Gg]ravity)","Gravity",colNames[i])
-  colNames[i] = gsub("([Bb]ody[Bb]ody|[Bb]ody)","Body",colNames[i])
-  colNames[i] = gsub("[Gg]yro","Gyro",colNames[i])
-  colNames[i] = gsub("AccMag","AccMagnitude",colNames[i])
-  colNames[i] = gsub("([Bb]odyaccjerkmag)","BodyAccJerkMagnitude",colNames[i])
-  colNames[i] = gsub("JerkMag","JerkMagnitude",colNames[i])
-  colNames[i] = gsub("GyroMag","GyroMagnitude",colNames[i])
-};
+###Extracts on the measurements on the mean and standard deviation for each measurement
 
-# Reassigning the new descriptive column names to the finalData set
-colnames(finalData) = colNames;
+#1.Subset Name of Features by measurements on the mean and s.d
+subdataFeaturesNames<-dataFeaturesNames$V2[grep("mean\\(\\)|std\\(\\)", dataFeaturesNames$V2)]
 
-# 5. Create a second, independent tidy data set with the average of each variable for each activity and each subject. 
+#2.Subset the data frame Data by seletected names of features
+selectedNames<-c(as.character(subdataFeaturesNames), "subject", "activity" )
+Data<-subset(Data,select=selectedNames)
 
-# Create a new table, finalDataNoActivityType without the activityType column
-finalDataNoActivityType  = finalData[,names(finalData) != 'activityType'];
+#3. Check the structures of the data frame Data
+str(Data)
 
-# Summarizing the finalDataNoActivityType table to include just the mean of each variable for each activity and each subject
-tidyData    = aggregate(finalDataNoActivityType[,names(finalDataNoActivityType) != c('activityId','subjectId')],by=list(activityId=finalDataNoActivityType$activityId,subjectId = finalDataNoActivityType$subjectId),mean);
+###Use descriptive activity names to name the activities in the data set
+#1.Read descriptive activity names from "activity_label.txt"
+activityLabels <- read.table(file.path(path_rf, "activity_labels.txt"),header = FALSE)
+#2.factorize variable Activity in the data frame Data using descriptive activity names
+head(Data$activity,30)
 
-# Merging the tidyData with activityType to include descriptive acitvity names
-tidyData    = merge(tidyData,activityType,by='activityId',all.x=TRUE);
+## Label appropriately the data set with descriptive variable names
+names(Data)<-gsub("^t", "time", names(Data))
+names(Data)<-gsub("^f", "frequency", names(Data))
+names(Data)<-gsub("Acc", "Accelerometer", names(Data))
+names(Data)<-gsub("Gyro", "Gyroscope", names(Data))
+names(Data)<-gsub("Mag", "Magnitude", names(Data))
+names(Data)<-gsub("BodyBody", "Body", names(Data))
 
-# Export the tidyData set 
-write.table(tidyData, './tidyData.txt',row.names=TRUE,sep='\t');
+names(Data)
 
+##Create a second,independent tidy data set and output it
+library(plyr);
+Data2<-aggregate(. ~subject + activity, Data, mean)
+Data2<-Data2[order(Data2$subject,Data2$activity),]
+write.table(Data2, file = "tidydata.txt",row.name=FALSE)
+
+head(Data2)
+
+## Produced Codebook
+install.packages("knitr")
+library(knitr) 
 ##########################################################################################################
